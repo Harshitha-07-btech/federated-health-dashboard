@@ -13,7 +13,7 @@ Federated Health is an autonomous, AI-driven healthcare logistics and disease tr
 ## 🛠️ Tech Stack
 *   **Frontend Ecosystem:** React 19, Vite, Tailwind CSS (for modern, glassmorphic UI aesthetics), Recharts (for AI demand visualization), and Lucide-React (for icons).
 *   **Database & Real-time Layer:** Supabase (PostgreSQL with PostgREST and Realtime Channels).
-*   **Artificial Intelligence:** Google Gemini REST API (`gemini-1.5-flash` model endpoint).
+*   **Artificial Intelligence:** Google Gemini REST API (`gemini-3.5-flash` model endpoint).
 
 ## 💻 Local Setup & Installation
 
