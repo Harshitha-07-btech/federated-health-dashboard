@@ -11,26 +11,6 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://mock.supabase.
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'mock-key';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// --- AGENTIC AI WORKFLOW MOCK ---
-const simulateAgenticAILogic = async (deficitStats, surplusStats) => {
-  await new Promise(resolve => setTimeout(resolve, 1200));
-
-  const severityScore = 100 - (deficitStats.medStock || 0);
-  const calculateMedicineUnits = Math.floor(severityScore * 18.5);
-
-  let staffToMove = 0;
-  if ((deficitStats.footfall || 0) > (surplusStats.footfall || 0)) {
-    staffToMove = Math.ceil((deficitStats.footfall - surplusStats.footfall) / 80);
-  } else {
-    staffToMove = 1;
-  }
-
-  return {
-    recommended_medicine_transfer: `${calculateMedicineUnits} units of multi-spectrum medicine`,
-    recommended_staff_transfer: `${staffToMove} emergency field staff`
-  };
-};
-// --------------------------------
 
 // --- 30-DAY AI LOGISTICS DEMAND SIMULATION ---
 const generateDemandForecast = () => Array.from({ length: 30 }, (_, i) => {
@@ -66,6 +46,7 @@ function App() {
   const [activeTransfers, setActiveTransfers] = useState([]);
   const [aiWarnings, setAiWarnings] = useState([]);
   const [initiatedIds, setInitiatedIds] = useState({});
+  const [activeAlert, setActiveAlert] = useState(null);
 
   const applyFallbackMockData = () => {
     setMetrics({ phcs: 1482, shortages: 43, transfers: 5 });
@@ -120,6 +101,17 @@ function App() {
         .order('created_at', { ascending: false });
 
       if (transfersError) throw transfersError;
+
+      const { data: alertData, error: alertError } = await supabase
+        .from('regional_alerts')
+        .select('*')
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      console.log("Fetched Alert Data:", alertData, alertError);
+
+      setActiveAlert(alertData || null);
 
       let localTelemetryMap = new Map();
 
@@ -213,12 +205,65 @@ function App() {
       }
 
       const deficitData = telemetry.find(t => t.id === warning.phc_id);
-      let resourceDescPayload = "Emergency Medicine Stock & Relief Staff";
 
-      if (surplusData && deficitData) {
-        const aiRecommendations = await simulateAgenticAILogic(deficitData, surplusData);
-        resourceDescPayload = `${aiRecommendations.recommended_medicine_transfer} & ${aiRecommendations.recommended_staff_transfer}`;
+      if (!surplusData || !deficitData) {
+        throw new Error("Missing source or destination data for AI calculation.");
       }
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${import.meta.env.VITE_GEMINI_API_KEY}`;
+
+      const promptText = `
+        You are a senior medical logistics director AI. 
+        Destination Facility Telemetry:
+        - Medicine Stock: ${deficitData.medStock}%
+        - Beds (Occupied/Cap): ${deficitData.beds}
+        - Doctors/Nurses: ${deficitData.staff} Doctors, ${deficitData.nurses} Nurses
+        - Daily Footfall: ${deficitData.footfall}
+        
+        Origin Facility Telemetry (Surplus available):
+        - Medicine Stock: ${surplusData.medStock}%
+        - Beds (Occupied/Cap): ${surplusData.beds}
+        - Doctors/Nurses: ${surplusData.staff} Doctors, ${surplusData.nurses} Nurses
+        
+        Environmental Context:
+        - Seasonal Dengue/Viral surge alert: Active (+40% projected patient footfall this week).
+        - Estimated ambulance transit time: 35 minutes across Hyderabad traffic.
+        - Staff burnout factor: High patient-to-doctor ratio at destination.
+        ${activeAlert ? `- An active health alert is in effect: ${activeAlert.active_disease}. This causes a demand multiplier of ${activeAlert.demand_multiplier}x for ${activeAlert.critical_supplies}.` : ''}
+        
+        Decide how many units of medicine and staff to transfer without causing a deficit at the origin.
+        Return ONLY valid JSON with exactly three keys:
+        - medicine_transfer_units (integer)
+        - staff_transfer_count (integer)
+        - ai_reasoning (string: concise 1-2 sentence explanation of allocation based on surge/workload)
+      `;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: promptText }]
+          }],
+          generationConfig: { response_mime_type: "application/json" }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP Error ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const responseText = data.candidates[0].content.parts[0].text.trim();
+      const aiData = JSON.parse(responseText);
+
+      console.log("Gemini Output:", aiData);
+      console.log("AI Clinical Reasoning:", aiData.ai_reasoning);
+
+      // Include ai_reasoning in the text payload so it's safely inserted into Postgres without schema issues
+      const resourceDescPayload = `${aiData.medicine_transfer_units} units of multi-spectrum medicine & ${aiData.staff_transfer_count} emergency field staff. AI Note: ${aiData.ai_reasoning}`;
 
       const payload = {
         destination_phc_id: warning.phc_id,
@@ -245,14 +290,14 @@ function App() {
         return next;
       });
 
-    } catch (err) {
-      console.error("Caught Exception:", err);
+    } catch (error) {
+      console.error("Gemini API Error:", error);
       setInitiatedIds(prev => {
         const next = { ...prev };
         delete next[warning.id];
         return next;
       });
-      alert("Failed to initiate dynamic AI transfer. See console for details.");
+      return;
     }
   };
 
@@ -317,6 +362,25 @@ function App() {
           </div>
         </div>
       </nav>
+
+      {activeAlert && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center justify-between shadow-lg shadow-red-500/5">
+            <div className="flex items-center gap-4">
+              <div className="bg-red-500/20 p-2 rounded-lg">
+                <ShieldAlert className="w-6 h-6 text-red-500 animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-red-400 font-bold uppercase tracking-wider text-sm">{activeAlert.season_name} Regional Alert</h3>
+                <p className="text-neutral-300 text-sm mt-1">
+                  Active Disease: <span className="font-medium text-white">{activeAlert.active_disease}</span> |
+                  Demand Multiplier: <span className="font-semibold text-red-400">{activeAlert.demand_multiplier}x</span> for <span className="text-red-300 font-mono text-xs">{activeAlert.critical_supplies}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
@@ -622,10 +686,10 @@ function App() {
                               onClick={() => handleSyncAction(warning)}
                               disabled={hasActiveOrder || isProcessing}
                               className={`w-full mt-2 border text-xs font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2 ${hasActiveOrder
-                                  ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 cursor-not-allowed'
-                                  : isProcessing
-                                    ? 'bg-white/10 text-white/50 border-white/5 cursor-wait'
-                                    : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
+                                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 cursor-not-allowed'
+                                : isProcessing
+                                  ? 'bg-white/10 text-white/50 border-white/5 cursor-wait'
+                                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-white'
                                 }`}
                             >
                               {hasActiveOrder ? (
