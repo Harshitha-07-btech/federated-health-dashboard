@@ -47,6 +47,7 @@ function App() {
   const [aiWarnings, setAiWarnings] = useState([]);
   const [initiatedIds, setInitiatedIds] = useState({});
   const [activeAlert, setActiveAlert] = useState(null);
+  const [autoMode, setAutoMode] = useState(false);
 
   const applyFallbackMockData = () => {
     setMetrics({ phcs: 1482, shortages: 43, transfers: 5 });
@@ -184,6 +185,8 @@ function App() {
     };
   }, [fetchDashboardData]);
 
+
+
   const handleSyncAction = async (warning) => {
     if (initiatedIds[warning.id]) return;
     setInitiatedIds(prev => ({ ...prev, [warning.id]: 'loading' }));
@@ -229,7 +232,7 @@ function App() {
         - Seasonal Dengue/Viral surge alert: Active (+40% projected patient footfall this week).
         - Estimated ambulance transit time: 35 minutes across Hyderabad traffic.
         - Staff burnout factor: High patient-to-doctor ratio at destination.
-        ${activeAlert ? `- An active health alert is in effect: ${activeAlert.active_disease}. This causes a demand multiplier of ${activeAlert.demand_multiplier}x for ${activeAlert.critical_supplies}.` : ''}
+        ${activeAlert ? `- An active regional disease surge is in effect: ${activeAlert.active_disease}. This causes a demand multiplier of ${activeAlert?.demand_multiplier || 1.0}x for ${activeAlert.critical_supplies}. Account for this regional disease surge when calculating the transfer units and emergency staff.` : ''}
         
         Decide how many units of medicine and staff to transfer without causing a deficit at the origin.
         Return ONLY valid JSON with exactly three keys:
@@ -332,6 +335,21 @@ function App() {
     return etas[charCode % etas.length];
   };
 
+  useEffect(() => {
+    if (!autoMode || offlineMode || loading) return;
+    // Find the first stockout warning that isn't already processing AND doesn't have an active order
+    const criticalWarning = aiWarnings.find(w => {
+      if (w.type !== 'stockout' || initiatedIds[w.id]) return false;
+      const hasActiveOrder = activeTransfers.some(order => order.destination_phc_id === w.phc_id);
+      return !hasActiveOrder;
+    });
+
+    if (criticalWarning) {
+      console.log('--- AUTO-DISPATCH INITIATED FOR:', criticalWarning.phc_id, '---');
+      handleSyncAction(criticalWarning);
+    }
+  }, [autoMode, aiWarnings, activeTransfers, initiatedIds, offlineMode, loading]);
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans selection:bg-blue-500/30">
       <nav className="border-b border-neutral-800 bg-neutral-900/50 backdrop-blur-md sticky top-0 z-50">
@@ -365,16 +383,20 @@ function App() {
 
       {activeAlert && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center justify-between shadow-lg shadow-red-500/5">
-            <div className="flex items-center gap-4">
-              <div className="bg-red-500/20 p-2 rounded-lg">
-                <ShieldAlert className="w-6 h-6 text-red-500 animate-pulse" />
+          <div className="bg-amber-900/20 border border-amber-500/30 rounded-xl p-4 shadow-lg shadow-amber-500/5 backdrop-blur-md">
+            <div className="flex items-start gap-4">
+              <div className="bg-amber-500/20 p-2 rounded-lg mt-1">
+                <ShieldAlert className="w-6 h-6 text-amber-500 animate-pulse" />
               </div>
-              <div>
-                <h3 className="text-red-400 font-bold uppercase tracking-wider text-sm">{activeAlert.season_name} Regional Alert</h3>
-                <p className="text-neutral-300 text-sm mt-1">
-                  Active Disease: <span className="font-medium text-white">{activeAlert.active_disease}</span> |
-                  Demand Multiplier: <span className="font-semibold text-red-400">{activeAlert.demand_multiplier}x</span> for <span className="text-red-300 font-mono text-xs">{activeAlert.critical_supplies}</span>
+              <div className="space-y-1">
+                <h3 className="text-amber-500 font-bold tracking-wide text-sm flex items-center gap-2">
+                  🌧️ Active Alert: {activeAlert.season_name} Season — <span className="text-white">{activeAlert.active_disease}</span>
+                </h3>
+                <p className="text-neutral-300 text-sm">
+                  Demand Multiplier: <span className="font-semibold text-red-400">{activeAlert.demand_multiplier}x</span> <span className="text-neutral-500 text-xs">(+27% Surge)</span>
+                </p>
+                <p className="text-neutral-300 text-sm">
+                  Priority Supplies: <span className="font-medium text-amber-200/90">{activeAlert.critical_supplies}</span>
                 </p>
               </div>
             </div>
@@ -563,9 +585,13 @@ function App() {
                   <Truck className="w-5 h-5 text-neutral-400" />
                   Live Logistics & Routing
                 </h2>
-                <div className="text-xs text-neutral-500 bg-neutral-900 px-3 py-1 rounded-full border border-neutral-800 flex items-center gap-1.5">
-                  <Cpu className="w-3.5 h-3.5 text-indigo-400" /> AI Automated Dispatch
-                </div>
+                <button
+                  onClick={() => setAutoMode(!autoMode)}
+                  className={`text-xs px-3 py-1 rounded-full border flex items-center gap-1.5 transition-colors ${autoMode ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-neutral-500 bg-neutral-900 border-neutral-800'}`}
+                >
+                  <Cpu className={`w-3.5 h-3.5 ${autoMode ? 'text-emerald-400 animate-pulse' : 'text-indigo-400'}`} />
+                  {autoMode ? 'Auto-Dispatch Active' : 'AI Automated Dispatch'}
+                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -616,10 +642,18 @@ function App() {
                           </div>
 
                           <div className="pt-4 border-t border-neutral-800/50 flex flex-col gap-3">
-                            <span className="text-xs text-neutral-400 flex items-start gap-1.5 font-medium leading-relaxed">
-                              <Pill className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
-                              {order.resource_description}
-                            </span>
+                            <div className="flex flex-col gap-1.5">
+                              <span className="text-xs text-neutral-400 flex items-start gap-1.5 font-medium leading-relaxed">
+                                <Pill className="w-3.5 h-3.5 text-indigo-400 shrink-0 mt-0.5" />
+                                {order.resource_description.split('AI Note:')[0]}
+                              </span>
+                              {order.resource_description.includes('AI Note:') && (
+                                <span className="text-[11px] text-indigo-300/80 italic flex items-start gap-1.5 pl-5 pr-2">
+                                  <Cpu className="w-3 h-3 shrink-0 mt-0.5" />
+                                  "{order.resource_description.split('AI Note:')[1].trim()}"
+                                </span>
+                              )}
+                            </div>
                             <div className="flex gap-2 justify-end mt-1">
                               <button
                                 onClick={() => handleCancelTransfer(order.id)}

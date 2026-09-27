@@ -1,35 +1,63 @@
-# Federated Health Care - Resource Platform (PoC)
+# Federated Health - National Resource Platform
 
-## Project Overview
-A React-based Proof of Concept (PoC) dashboard built for a hackathon. It visualizes simulated healthcare telemetry and demonstrates real-time state management for medical resource redistribution.
+## 🚀 Elevator Pitch
+Federated Health is an autonomous, AI-driven healthcare logistics and disease tracking dashboard designed to democratize critical resource allocation. By continuously analyzing live telemetry from a decentralized network of Primary Health Centers (PHCs), the platform predicts medical stockouts, identifies regional outbreak surges (like Dengue or Viral Fever), and utilizes an autonomous AI agent to orchestrate life-saving supply transfers—all before a facility reaches critical failure.
 
-## Current Features Built
-- **Database Integration:** Reads and writes to a Supabase PostgreSQL database (`phc_nodes`, `phc_telemetry_live`, `resource_redistribution_orders`).
-- **Real-Time UI Updates:** Uses Supabase WebSockets to instantly update the "Live Logistics" panel and metric counters without page refreshes when a new transfer is inserted or deleted.
-- **Data Visualization:** Includes a 30-day simulated trend chart built with `recharts` to mock predictive demand forecasting.
-- **Redistribution Logic:** A simulated routing function that calculates basic medicine and staff transfer amounts from a surplus hospital to a deficit hospital based on static UI triggers.
+## ✨ Key Features
+*   **Live Supabase Telemetry:** Connects to remote PHC network nodes utilizing Supabase real-time Websockets to monitor vital operational parameters, including medicine stock percentages, bed capacity, doctor-to-patient ratios, and daily footfall.
+*   **Regional Disease Outbreak Alerts:** Integrates real-time epidemic intelligence as a demand multiplier. During active seasonal disease surges, the system dynamically adjusts the urgency matrix.
+*   **Autonomous Resource Watcher (`autoMode`):** Features an advanced `useEffect` logistics watcher that proactively sweeps for active unfulfilled stockout forecasts. When active, it triggers autonomous intervention workflows without requiring human approval.
+*   **Gemini AI Logistics Director:** Uses Google Gemini's advanced clinical reasoning to compute the most ethical and efficient supply route. It autonomously calculates exact medical unit transfer amounts and emergency staff allocations to mitigate shortages without triggering a cascading deficit at the source facility.
+*   **Resilient Offline Fallback:** Automatically degrades gracefully into an offline visualization mode using embedded historical and local datasets if the connection to the national sub-grid is severered.
 
-## Tech Stack
-- React
-- Vite
-- Tailwind CSS
-- Supabase (Database & Realtime)
-- Recharts
+## 🛠️ Tech Stack
+*   **Frontend Ecosystem:** React 19, Vite, Tailwind CSS (for modern, glassmorphic UI aesthetics), Recharts (for AI demand visualization), and Lucide-React (for icons).
+*   **Database & Real-time Layer:** Supabase (PostgreSQL with PostgREST and Realtime Channels).
+*   **Artificial Intelligence:** Google Gemini REST API (`gemini-1.5-flash` model endpoint).
 
-## Local Setup
-1. **Install dependencies:**
+## 💻 Local Setup & Installation
+
+Follow these steps to deploy the dashboard locally:
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/your-org/federated-health-dashboard.git
+   cd federated-health-dashboard
+   ```
+
+2. **Install dependencies:**
+   Ensure you have Node.js and `npm` installed.
    ```bash
    npm install
    ```
 
-2. **Environment Variables:**
-   Create a `.env` file in the root directory and add the following keys for the database connection:
-   ```env
-   VITE_SUPABASE_URL=your_supabase_url
-   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-   ```
+3. **Configure Environment Variables:**
+   Create a new `.env` file in the root directory and securely populate your API keys (see template below).
 
-3. **Run the development server:**
+4. **Spin up the Vite Development Server:**
    ```bash
    npm run dev
    ```
+   Navigate to `http://localhost:5173` in your browser to view the application.
+
+## 🔐 Environment Variables
+
+Create a `.env` file at the root of the project. **Never commit this file to version control.**
+
+```env
+# Supabase Configuration
+VITE_SUPABASE_URL=https://<your-project-id>.supabase.co
+VITE_SUPABASE_ANON_KEY=ey...<your-anon-jwt-key>...
+
+# Google Gemini API
+VITE_GEMINI_API_KEY=AI...<your-gemini-api-key>...
+```
+
+## 🗄️ Database Schema Overview (Supabase PostgreSQL)
+
+To fully function, the dashboard relies on the following core tables:
+*   **`phc_nodes`**: The master directory mapping all health centers, complete with district identifiers and static capacity guidelines.
+*   **`phc_telemetry_live`**: High-frequency streaming sensor and operational data (captures medicine stock levels, beds, footfall, stationed personnel).
+*   **`ai_stock_forecasts`**: Daily predictive records generated by external federated models identifying exactly *when* a specific PHC will hit critical risk.
+*   **`regional_alerts`**: Contains epidemiological surge tracking variables (e.g., multiplier rates, active disease states) that the Gemini API actively accounts for.
+*   **`resource_redistribution_orders`**: The transactional logistics ledger linking source and destination PHCs along with the exact AI-generated resource manifest.
