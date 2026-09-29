@@ -1,63 +1,276 @@
-# Federated Health - National Resource Platform
+# 🏥 Federated Health Dashboard
 
-## 🚀 Elevator Pitch
-Federated Health is an autonomous, AI-driven healthcare logistics and disease tracking dashboard designed to democratize critical resource allocation. By continuously analyzing live telemetry from a decentralized network of Primary Health Centers (PHCs), the platform predicts medical stockouts, identifies regional outbreak surges (like Dengue or Viral Fever), and utilizes an autonomous AI agent to orchestrate life-saving supply transfers—all before a facility reaches critical failure.
+Agentic AI-powered healthcare logistics and autonomous medical resource routing.
+Federated Health Dashboard helps regional health networks prevent critical medicine stockouts by turning live telemetry data into focused, automated redistribution orders using the Google Gemini API.
+The application operates as an active Agentic UI wrapper—meaning it doesn't just display data, it monitors, triggers LLM interpretations via Gemini, and tracks autonomous redistribution requests.
+The project uses PostgreSQL through Supabase to persist clinic nodes, live telemetry data, and the automated dispatch history.
 
-## ✨ Key Features
-*   **Live Supabase Telemetry:** Connects to remote PHC network nodes utilizing Supabase real-time Websockets to monitor vital operational parameters, including medicine stock percentages, bed capacity, doctor-to-patient ratios, and daily footfall.
-*   **Regional Disease Outbreak Alerts:** Integrates real-time epidemic intelligence as a demand multiplier. During active seasonal disease surges, the system dynamically adjusts the urgency matrix.
-*   **Autonomous Resource Watcher (`autoMode`):** Features an advanced `useEffect` logistics watcher that proactively sweeps for active unfulfilled stockout forecasts. When active, it triggers autonomous intervention workflows without requiring human approval.
-*   **Gemini AI Logistics Director:** Uses Google Gemini's advanced clinical reasoning to compute the most ethical and efficient supply route. It autonomously calculates exact medical unit transfer amounts and emergency staff allocations to mitigate shortages without triggering a cascading deficit at the source facility.
-*   **Resilient Offline Fallback:** Automatically degrades gracefully into an offline visualization mode using embedded historical and local datasets if the connection to the national sub-grid is severered.
+🚀 **Live Demo**
+[https://federated-health-dashboard-hhk2v9ry7-kramer-kodes.vercel.app](https://federated-health-dashboard-hhk2v9ry7-kramer-kodes.vercel.app)
 
-## 🛠️ Tech Stack
-*   **Frontend Ecosystem:** React 19, Vite, Tailwind CSS (for modern, glassmorphic UI aesthetics), Recharts (for AI demand visualization), and Lucide-React (for icons).
-*   **Database & Real-time Layer:** Supabase (PostgreSQL with PostgREST and Realtime Channels).
-*   **Artificial Intelligence:** Google Gemini REST API (`gemini-3.5-flash` model endpoint).
+## 📌 Problem
 
-## 💻 Local Setup & Installation
+When Primary Health Centres (PHCs) run low on critical emergency supplies, they usually rely on passive dashboards and manual human intervention to request stock from neighboring clinics.
+This process can be slow, error-prone, and inefficient during a medical crisis.
+Federated Health Dashboard aims to simplify and automate this process by:
 
-Follow these steps to deploy the dashboard locally:
+* Continuously monitoring medicine stock levels across the region.
+* Identifying clinics facing imminent stockouts and displaying AI-driven risk forecasts.
+* Querying Google Gemini to find the nearest clinic with a surplus and assigning transfer units.
+* Automatically logging a transfer order without human delay (when Auto-Dispatch is active).
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/your-org/federated-health-dashboard.git
-   cd federated-health-dashboard
-   ```
+## 💡 Solution
 
-2. **Install dependencies:**
-   Ensure you have Node.js and `npm` installed.
-   ```bash
-   npm install
-   ```
+Federated Health Dashboard combines:
 
-3. **Configure Environment Variables:**
-   Create a new `.env` file in the root directory and securely populate your API keys (see template below).
+* React & Vite for the high-performance web application frontend.
+* Agentic AI logic powered by Google Gemini (`gemini-3.5-flash`) for ethical logistics distribution routing.
+* PostgreSQL for persistent data storage via Supabase.
+* Supabase for hosted PostgreSQL tables and real-time WebSockets tracking operations.
+* Vercel for web client deployment.
 
-4. **Spin up the Vite Development Server:**
-   ```bash
-   npm run dev
-   ```
-   Navigate to `http://localhost:5173` in your browser to view the application.
+The application stores the clinic network data and every resulting dispatch order recommended by the Gemini LLM, keeping a continuous logistics history.
 
-## 🔐 Environment Variables
+## ✨ Features
 
-Create a `.env` file at the root of the project. **Never commit this file to version control.**
+**Auto-Dispatch Engine (Agentic Watcher)**
+A client-side continuous watcher (`useEffect`) embedded in the React UI continuously parses active `ai_stock_forecasts` and live telemetry data to detect critical anomalies. When Auto-Dispatch mode (`autoMode`) is toggled on, it automatically queries the Gemini API for any unhandled critical forecasts and issues dispatch recommendations without human approval.
 
-```env
-# Supabase Configuration
-VITE_SUPABASE_URL=https://<your-project-id>.supabase.co
-VITE_SUPABASE_ANON_KEY=ey...<your-anon-jwt-key>...
+**Gemini AI Logistics Director**
+The system formulates contextual telemetry data—incorporating surplus beds, medicine percentages, and active disease demand multipliers—and triggers the Google Gemini `gemini-3.5-flash` endpoint to determine exact stock offsets and emergency staff levels needed, returning a structured JSON routing order.
 
-# Google Gemini API
-VITE_GEMINI_API_KEY=AI...<your-gemini-api-key>...
+**Real-Time Telemetry & Forecasts**
+Live UI updates driven by Supabase WebSockets ensure that stock percentages, risk forecasts, and active transfer statuses dynamically repaint the dashboard immediately upon database inserts.
+
+**Persistent Order History**
+All resource redistribution orders generated by Gemini are inserted into the Supabase PostgreSQL ledger, rendering them permanently trackable as Active Transfers on the UI grid.
+
+**Offline Mock Mode Resilience**
+If the network connection or database connection fails (`offlineMode`), the application will apply historical fallback mock data so the UI layout and simulated grid persist in a degraded local mode. 
+
+*Note regarding Federated Learning: While the overall concept is "Federated Health", the actual model training processes, federated algorithms, Python aggregation scripts, and raw patient data processing loops are not part of this repository. The dashboard strictly serves as the frontend visualization, fetching pre-calculated federated global version metrics from Supabase.*
+
+## 🏗️ Architecture
+
+```
+                     ┌─────────────────────────┐
+                     │     React Dashboard     │
+                     │  (Client & UI Engine)   │
+                     └───────┬────────┬────────┘
+                             │        │
+                             │        │ HTTP Request (Prompt payload)
+                             │        ▼
+                             │    ┌───────────────────┐
+                             │    │ Google Gemini API │
+                             │    │ (gemini-3.5-flash)│
+                             │    └─────────┬─────────┘
+                             │              │ JSON Routing Order
+                             ▼              ▼
+      ┌──────────────────┐            ┌──────────────────┐
+      │     Supabase     │            │   WebSockets     │
+      │    Client API    │            │ (Real-Time Sync) │
+      └────────┬─────────┘            └────────┬─────────┘
+               │                               │
+               │                               ▼
+               │                    ┌────────────────────┐
+               │                    │     PostgreSQL     │
+               │                    │   through Supabase │
+               │                    └─────────┬──────────┘
+               │                              │
+               │              ┌───────────────┼───────────────┐
+               │              │               │               │
+               │              ▼               ▼               ▼
+               │         phc_nodes   phc_telemetry_live  resource_redistribution_orders
+               │
+               ▼
+   Live Dashboard Sync & Automated Dispatches
 ```
 
-## 🗄️ Database Schema Overview (Supabase PostgreSQL)
+## 🗄️ PostgreSQL Database
 
-To fully function, the dashboard relies on the following core tables:
-*   **`phc_nodes`**: The master directory mapping all health centers, complete with district identifiers and static capacity guidelines.
-*   **`phc_telemetry_live`**: High-frequency streaming sensor and operational data (captures medicine stock levels, beds, footfall, stationed personnel).
-*   **`ai_stock_forecasts`**: Daily predictive records generated by external federated models identifying exactly *when* a specific PHC will hit critical risk.
-*   **`regional_alerts`**: Contains epidemiological surge tracking variables (e.g., multiplier rates, active disease states) that the Gemini API actively accounts for.
-*   **`resource_redistribution_orders`**: The transactional logistics ledger linking source and destination PHCs along with the exact AI-generated resource manifest.
+PostgreSQL is used as the persistent relational database for the application.
+Supabase provides the hosted PostgreSQL database and active client subscriptions for the dashboard.
+
+**Confirmed Database Tables (Extracted straight from the codebase queries):**
+
+### 1. `phc_nodes`
+Stores the geographic identities defining the network.
+* `id` (UUID format inferred for joins)
+* `phc_name` (Name of the location, e.g., 'Metro Central PHC')
+* `phc_code` (Location identifier code)
+* `district` (Region boundary name)
+
+### 2. `phc_telemetry_live`
+Stores the real-time stock levels and operational status of each node.
+* `id` (UUID)
+* `phc_id` (Relational key mapping to `phc_nodes`)
+* `medicine_stock_percentage` (Float marking stock out limits)
+* `beds_occupied` (Numeric current bed volume)
+* `beds_total` (Numeric aggregate bed max)
+* `doctors_present` (Numeric staffing)
+* `nurses_present` (Numeric staffing)
+* `daily_patient_footfall` (Numeric patient density limit)
+* `timestamp` (For sorting telemetry chronological records)
+
+### 3. `resource_redistribution_orders`
+Stores the autonomous dispatch sequences pushed by the Gemini recommendations.
+* `id`
+* `source_phc_id` (Donor clinic)
+* `destination_phc_id` (Struggling clinic)
+* `resource_description` (Gemini output string: "X units of medicine & Y staff. AI Note: ...")
+* `status` (Order state string, e.g., 'RECOMMENDED', 'IN_TRANSIT')
+* `created_at`
+
+### 4. Additional Reference Tables Used
+* **`ai_stock_forecasts`**: Generates the active risk elements (`risk_level`, `predicted_days_to_stockout`) evaluated directly by the AI dispatcher. 
+* **`regional_alerts`**: Tracks global states (`active_disease`, `demand_multiplier`) passed to Gemini to calculate context-aware transport limits. 
+* **`federated_learning_rounds`**: Simple static read-store updating the visual Global Model metadata metrics for demonstration (`global_model_version`, `accuracy_metric`). 
+
+## 🔄 How the Data Workflow Actually Operates
+
+When the Auto-Dispatch engine is active:
+
+1. The Dashboard retrieves and subscribes to `ai_stock_forecasts` and `phc_telemetry_live`.
+↓
+2. `useEffect` loops check for unhandled `CRITICAL` forecasts lacking an active dispatch.
+↓
+3. It bundles up destination deficits, surplus donors, and regional disease multipliers into a text prompt.
+↓
+4. The client issues an HTTP POST to Google Generative Language API (`gemini-3.5-flash`).
+↓
+5. Gemini strictly outputs a JSON parsing medicine units, staff counts, and clinical reasoning.
+↓
+6. The React App directly inserts this new `resource_redistribution_orders` record into PostgreSQL via Supabase.
+↓
+7. All connected dashboards receive the WebSockets push update, updating UI tracking matrices globally.
+
+## 🛠️ Tech Stack
+
+| Technology | Purpose |
+| --- | --- |
+| React (v19) | Frontend User Interface |
+| Vite | Build tool and development server |
+| JavaScript/JSX | Single Page Layouts and Agentic logic API fetches |
+| Tailwind CSS | Sleek, dark-mode medical UI application styling |
+| PostgreSQL | Persistent relational database (backend) |
+| Supabase | Database host provider and WebSockets pub/sub |
+| Google Gemini API | External generative logic returning JSON route orders |
+| Recharts | UI Chart Rendering |
+| Lucide-React | SVG icon sets |
+| Vercel | Deployment and edge hosting provider |
+
+*(Note: No Python models, aggregation containers, or separate backend APIs exist within this repository.)*
+
+## 📂 Project Structure
+
+```text
+federated-health-dashboard/
+│
+├── src/
+│   ├── App.jsx             # Main Application layout containing UI and HTTP Logic
+│   ├── App.css             # Component-level styling overrides
+│   ├── main.jsx            # React root injector
+│   ├── index.css           # Tailwind base styles and token root
+│   └── assets/             # Bundled static resources
+│
+├── public/                 # Root static index components
+│
+├── .env                    # Deployment secure keys
+├── package.json            # Configuration holding all Node library definitions
+├── tailwind.config.js      # Styling limits and plugins
+├── vite.config.js          # Deployment build compiler 
+├── test-gemini.mjs         # External Gemini test lookup tool
+└── README.md
+```
+
+## 💻 Getting Started
+
+**Prerequisites**
+Make sure you have installed:
+
+* Node.js
+* npm
+* Git
+
+**Clone the Repository**
+
+```bash
+git clone https://github.com/RenatiHarshitha/federated-health-dashboard.git
+cd federated-health-dashboard
+```
+
+**Install dependencies:**
+
+```bash
+npm install
+```
+
+**Environment Variables**
+Create a `.env` file referencing the specific `VITE_` definitions found matching the application queries.
+Add:
+
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_GEMINI_API_KEY=your_gemini_api_key
+```
+
+Never commit secret keys or API keys to GitHub.
+
+**Run Locally**
+Start the development server:
+
+```bash
+npm run dev
+```
+
+Open:
+`http://localhost:5173`
+
+## 🚀 Deployment
+
+The application frontend is deployed using Vercel.
+
+**Production Application:**
+[https://federated-health-dashboard-hhk2v9ry7-kramer-kodes.vercel.app](https://federated-health-dashboard-hhk2v9ry7-kramer-kodes.vercel.app)
+
+The production deployment uses secure environment variables established in the Vercel project settings to hide API keys from the bundle. The database operates remotely on Supabase Postgres clusters.
+
+## 🔐 Security & Privacy Handling
+
+* **Client-Only Architecture:** Due to the hackathon limits of client-side execution, raw patient clinical histories are completely excluded from Supabase data. The application specifically passes anonymized operational load numbers (bed max/min, footfall integers) to Gemini, strictly guaranteeing PII (Personally Identifiable Information) remains removed from LLM interpretation prompts.
+* Environment variables (`.env`) obfuscate the LLM and DB endpoints from initial source check-ins, but in this specific client architecture, these run natively on the Vite context. 
+
+## 📚 What I Learned
+
+Building this project for Innova Hack 2026 helped me understand:
+
+* Designing Agentic AI interpretation logic explicitly within the React frontend utilizing Google's Generative endpoints.
+* PostgreSQL database design principles for relational telemetry nodes and logistics history arrays.
+* Establishing Live React Subscriptions against Supabase via Real-time WebSockets to dynamically govern the UI layout constraints without polling servers.
+* Persisting application AI metrics natively using PostgREST.
+
+## 🔮 Future Improvements
+
+Possible future improvements include:
+
+* Incorporating actual local Python nodes utilizing Federated Averaging techniques rather than reading static Supabase representations of global training cycles.
+* True ML-based Predictive modeling to forecast stock drops dynamically with Python integration, overwriting the placeholder synthetic math (`Math.sin` simulations) driving the 30-day demand graph.
+* Support for multiple vehicle routing configurations.
+* Advanced multi-node dispatching (splitting an order logically across two donor clinics in Gemini).
+* Implementation of explicit RBAC (Role Based Access Control) handling for hospital administrators approving auto-dispatch items.
+
+## 🔗 Links
+
+* **Live Demo:** [https://federated-health-dashboard-hhk2v9ry7-kramer-kodes.vercel.app](https://federated-health-dashboard-hhk2v9ry7-kramer-kodes.vercel.app)
+* **GitHub Repository:** [https://github.com/RenatiHarshitha/federated-health-dashboard](https://github.com/RenatiHarshitha/federated-health-dashboard)
+
+## 👩‍💻 Author
+
+**Renati Harshitha**
+B.Tech CSE Student, Vignana Bharathi Institute of Technology
+Agentic AI Track | Innova Hack 2026
+GitHub: [https://github.com/RenatiHarshitha](https://github.com/RenatiHarshitha)
+
+⭐ **Project**
+If you find this project interesting, feel free to explore the repository and try the live demo!

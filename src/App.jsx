@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   Building2, Users, AlertTriangle, ArrowRightLeft,
   Activity, Stethoscope, Bed, Pill, TrendingUp, ShieldAlert, CheckCircle2, WifiOff,
-  Truck, Clock, Cpu
+  Truck, Clock, Cpu, Lock, Network
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -48,6 +48,7 @@ function App() {
   const [initiatedIds, setInitiatedIds] = useState({});
   const [activeAlert, setActiveAlert] = useState(null);
   const [autoMode, setAutoMode] = useState(false);
+  const [federatedRounds, setFederatedRounds] = useState([]);
 
   const applyFallbackMockData = () => {
     setMetrics({ phcs: 1482, shortages: 43, transfers: 5 });
@@ -110,6 +111,14 @@ function App() {
         .limit(1)
         .maybeSingle();
 
+      const { data: flRounds, error: flError } = await supabase
+        .from('federated_learning_rounds')
+        .select('*')
+        .order('updated_at', { ascending: false })
+        .limit(5);
+
+      if (flError) console.error("FL Error:", flError);
+
       console.log("Fetched Alert Data:", alertData, alertError);
 
       setActiveAlert(alertData || null);
@@ -153,6 +162,10 @@ function App() {
         setActiveTransfers(transfersData);
       }
 
+      if (flRounds) {
+        setFederatedRounds(flRounds);
+      }
+
       setMetrics({
         phcs: phcCount || 0,
         shortages: lowStockCount || 0,
@@ -176,12 +189,14 @@ function App() {
     const sub2 = supabase.channel('forecasts_live').on('postgres_changes', { event: '*', schema: 'public', table: 'ai_stock_forecasts' }, () => fetchDashboardData(true)).subscribe();
     const sub3 = supabase.channel('orders_live').on('postgres_changes', { event: '*', schema: 'public', table: 'resource_redistribution_orders' }, () => fetchDashboardData(true)).subscribe();
     const sub4 = supabase.channel('nodes_live').on('postgres_changes', { event: '*', schema: 'public', table: 'phc_nodes' }, () => fetchDashboardData(true)).subscribe();
+    const sub5 = supabase.channel('fl_live').on('postgres_changes', { event: '*', schema: 'public', table: 'federated_learning_rounds' }, () => fetchDashboardData(true)).subscribe();
 
     return () => {
       sub1.unsubscribe();
       sub2.unsubscribe();
       sub3.unsubscribe();
       sub4.unsubscribe();
+      sub5.unsubscribe();
     };
   }, [fetchDashboardData]);
 
@@ -742,6 +757,50 @@ function App() {
                 })
               )}
             </div>
+
+            {/* Federated Learning Panel */}
+            <div className="pt-8">
+              <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+                <Network className="w-5 h-5 text-indigo-400" />
+                Secure Federated Training Activity
+              </h2>
+              {federatedRounds.length === 0 ? (
+                <div className="bg-neutral-900/50 border border-neutral-800 rounded-2xl p-6 text-center text-sm text-neutral-500">
+                  <div className="animate-spin w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full mx-auto mb-3" />
+                  Awaiting local node weights...
+                </div>
+              ) : (
+                <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-6 shadow-xl relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/5 opacity-50 group-hover:opacity-100 transition-opacity"></div>
+                  <div className="relative z-10 space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs text-indigo-400 font-bold uppercase tracking-wider mb-1">Latest Global Model</p>
+                        <h3 className="text-2xl font-bold text-white mb-1">
+                          {federatedRounds[0].global_model_version || 'v1.0.0'}
+                        </h3>
+                      </div>
+                      <div className="px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full flex items-center gap-2 text-green-400 text-sm font-medium">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Accuracy: {federatedRounds[0].accuracy_metric ? `${(federatedRounds[0].accuracy_metric * 100).toFixed(1)}%` : 'N/A'}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 pt-4 border-t border-neutral-800 border-dashed">
+                      <div className="flex items-center gap-2 text-sm text-neutral-400">
+                        <Building2 className="w-4 h-4 text-neutral-500" />
+                        {federatedRounds[0].participating_nodes_count || 0} Participating Nodes
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-neutral-400">
+                        <Lock className="w-4 h-4 text-emerald-500" />
+                        Zero Patient Data Transmitted - Privacy Preserved
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
 
         </div>
