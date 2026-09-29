@@ -195,7 +195,7 @@ Make sure you have installed:
 **Clone the Repository**
 
 ```bash
-git clone https://github.com/RenatiHarshitha/federated-health-dashboard.git
+git clone https://github.com/Harshitha-07-btech/federated-health-dashboard.git
 cd federated-health-dashboard
 ```
 
