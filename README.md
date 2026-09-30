@@ -229,7 +229,6 @@ Open:
 
 ## 🚀 Deployment
 
-The application frontend is deployed using Vercel.
 
 **Production Application:**
 [https://federated-health-dashboard-hhk2v9ry7-kramer-kodes.vercel.app](https://federated-health-dashboard-hhk2v9ry7-kramer-kodes.vercel.app)
@@ -269,8 +268,7 @@ Possible future improvements include:
 
 **Renati Harshitha**
 B.Tech CSE Student, Vignana Bharathi Institute of Technology
-Agentic AI Track | Innova Hack 2026
-GitHub: [https://github.com/RenatiHarshitha](https://github.com/RenatiHarshitha)
 
-⭐ **Project**
-If you find this project interesting, feel free to explore the repository and try the live demo!
+
+
+
